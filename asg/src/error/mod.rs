@@ -35,6 +35,9 @@ pub enum AsgConvertError {
     InternalError(String),
 
     #[error("{}", _0)]
+    IoError(#[from] std::io::Error),
+
+    #[error("{}", _0)]
     ParserError(#[from] ParserError),
 }
 
