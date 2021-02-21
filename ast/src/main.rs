@@ -16,18 +16,31 @@
 
 use leo_ast::{Ast, AstError};
 use leo_grammar::Grammar;
-use std::{env, fs, path::Path};
+use std::{env, fs, path::Path, time::Instant};
 
 fn to_leo_tree(filepath: &Path) -> Result<String, AstError> {
+    // Calculate the execution time to parse the file into a grammar object.
+    let grammar_timer = Instant::now();
+
     // Loads the Leo code as a string from the given file path.
     let program_filepath = filepath.to_path_buf();
     let program_string = Grammar::load_file(&program_filepath)?;
 
     // Parses the Leo file and constructs a pest ast.
-    let ast = Grammar::new(&program_filepath, &program_string)?;
+    let grammar = Grammar::new(&program_filepath, &program_string)?;
+
+    println!(
+        "Finished Grammar in {} microseconds \n",
+        grammar_timer.elapsed().as_micros()
+    );
+
+    // Calculate the execution time to construct an ast.
+    let timer = Instant::now();
 
     // Parse the pest ast and constructs a ast.
-    let leo_ast = Ast::new("leo_tree", &ast)?;
+    let leo_ast = Ast::new("leo_tree", &grammar)?;
+
+    println!("Finished AST in {} microseconds \n", timer.elapsed().as_micros());
 
     let serialized_leo_ast = Ast::to_json_string(&leo_ast)?;
 
