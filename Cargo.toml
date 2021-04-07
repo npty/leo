@@ -35,6 +35,7 @@ members = [
   "linter",
   "package",
   "parser",
+  "stages",
   "state",
   "synthesizer",
   "asg-passes",
