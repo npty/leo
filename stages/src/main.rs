@@ -14,7 +14,11 @@
 // You should have received a copy of the GNU General Public License
 // along with the Leo library. If not, see <https://www.gnu.org/licenses/>.
 
-use leo_ast::Ast;
+#[allow(unused)]
+use leo_asg::{new_context, Asg, AsgContext};
+use leo_ast::{Ast, ReconstructingReducer};
+use leo_compiler::{CombineAstAsgDirector, CompilerOptions};
+use leo_imports::ImportParser;
 use leo_parser::parser;
 
 use anyhow::{bail, Result};
@@ -24,6 +28,26 @@ use serde_json;
 use std::{fs::File, io::prelude::*, path::PathBuf};
 
 const TEST_PROGRAM_PATH: &str = "";
+
+thread_local! {
+    static THREAD_GLOBAL_CONTEXT: AsgContext<'static> = {
+        let leaked = Box::leak(Box::new(leo_asg::new_alloc_context()));
+        leo_asg::new_context(leaked)
+    }
+}
+
+pub fn thread_leaked_context() -> AsgContext<'static> {
+    THREAD_GLOBAL_CONTEXT.with(|f| *f)
+}
+
+struct TypeInferenceCombiner;
+impl ReconstructingReducer for TypeInferenceCombiner {}
+
+impl Default for TypeInferenceCombiner {
+    fn default() -> Self {
+        Self {}
+    }
+}
 
 fn write_ast(ast: Ast, file: &str) -> Result<()> {
     let program = ast.into_repr();
@@ -59,7 +83,13 @@ fn main() -> Result<()> {
             Arg::with_name("canonicalization")
                 .short("c")
                 .long("canonicalize")
-                .help("Writes the initially parsed ast to a canonicalization.json file."),
+                .help("Writes the canonicalized ast to a canonicalization.json file."),
+        )
+        .arg(
+            Arg::with_name("inference")
+                .short("i")
+                .long("inference")
+                .help("Writes the type inferenced ast to a type_inference.json file."),
         )
         .get_matches();
 
@@ -88,6 +118,17 @@ fn main() -> Result<()> {
     ast.canonicalize()?;
     if matches.is_present("all") || matches.is_present("canonicalization") {
         write_ast(ast.clone(), "canonicalization.json")?;
+    }
+
+    let program = ast.clone().into_repr();
+    let asg = Asg::new(thread_leaked_context(), &program, &mut ImportParser::default())?;
+
+    let new_ast = Ast::new(
+        CombineAstAsgDirector::new(TypeInferenceCombiner::default(), CompilerOptions::default())
+            .reduce_program(&ast.clone().into_repr(), &asg.into_repr())?,
+    );
+    if matches.is_present("all") || matches.is_present("inference") {
+        write_ast(new_ast.clone(), "type_inference.json")?;
     }
 
     Ok(())
