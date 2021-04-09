@@ -86,9 +86,9 @@ fn main() -> Result<()> {
                 .help("Writes the canonicalized ast to a canonicalization.json file."),
         )
         .arg(
-            Arg::with_name("inference")
-                .short("i")
-                .long("inference")
+            Arg::with_name("type_inference")
+                .short("t")
+                .long("type_inference")
                 .help("Writes the type inferenced ast to a type_inference.json file."),
         )
         .get_matches();
@@ -127,7 +127,7 @@ fn main() -> Result<()> {
         CombineAstAsgDirector::new(TypeInferenceCombiner::default(), CompilerOptions::default())
             .reduce_program(&ast.clone().into_repr(), &asg.into_repr())?,
     );
-    if matches.is_present("all") || matches.is_present("inference") {
+    if matches.is_present("all") || matches.is_present("type_inference") {
         write_ast(new_ast.clone(), "type_inference.json")?;
     }
 
