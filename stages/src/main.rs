@@ -40,12 +40,23 @@ pub fn thread_leaked_context() -> AsgContext<'static> {
     THREAD_GLOBAL_CONTEXT.with(|f| *f)
 }
 
-struct TypeInferenceCombiner;
-impl ReconstructingReducer for TypeInferenceCombiner {}
+struct TypeInferenceCombiner {
+    in_circuit: bool,
+}
+
+impl ReconstructingReducer for TypeInferenceCombiner {
+    fn in_circuit(&self) -> bool {
+        self.in_circuit
+    }
+
+    fn swap_in_circuit(&mut self) {
+        self.in_circuit = !self.in_circuit;
+    }
+}
 
 impl Default for TypeInferenceCombiner {
     fn default() -> Self {
-        Self {}
+        Self { in_circuit: false }
     }
 }
 
