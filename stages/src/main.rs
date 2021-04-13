@@ -16,8 +16,8 @@
 
 #[allow(unused)]
 use leo_asg::{new_context, Asg, AsgContext};
-use leo_ast::{Ast, ReconstructingReducer};
-use leo_compiler::{CombineAstAsgDirector, CompilerOptions};
+use leo_ast::Ast;
+use leo_compiler::TypeInferenceStage;
 use leo_imports::ImportParser;
 use leo_parser::parser;
 
@@ -40,26 +40,6 @@ pub fn thread_leaked_context() -> AsgContext<'static> {
     THREAD_GLOBAL_CONTEXT.with(|f| *f)
 }
 
-struct TypeInferenceCombiner {
-    in_circuit: bool,
-}
-
-impl ReconstructingReducer for TypeInferenceCombiner {
-    fn in_circuit(&self) -> bool {
-        self.in_circuit
-    }
-
-    fn swap_in_circuit(&mut self) {
-        self.in_circuit = !self.in_circuit;
-    }
-}
-
-impl Default for TypeInferenceCombiner {
-    fn default() -> Self {
-        Self { in_circuit: false }
-    }
-}
-
 fn write_ast(ast: Ast, file: &str) -> Result<()> {
     let program = ast.into_repr();
     serde_json::to_writer_pretty(&File::create(file)?, &program)?;
@@ -79,6 +59,14 @@ fn main() -> Result<()> {
                 .takes_value(true),
         )
         .arg(
+            Arg::with_name("input")
+                .short("i")
+                .long("input")
+                .help("Sets the path to the leo input file.")
+                .required(true)
+                .takes_value(true),
+        )
+        .arg(
             Arg::with_name("all")
                 .short("a")
                 .long("all")
@@ -86,7 +74,7 @@ fn main() -> Result<()> {
         )
         .arg(
             Arg::with_name("initial")
-                .short("i")
+                .short("in")
                 .long("initial")
                 .help("Writes the initially parsed ast to a initial.json file."),
         )
@@ -134,10 +122,9 @@ fn main() -> Result<()> {
     let program = ast.clone().into_repr();
     let asg = Asg::new(thread_leaked_context(), &program, &mut ImportParser::default())?;
 
-    let new_ast = Ast::new(
-        CombineAstAsgDirector::new(TypeInferenceCombiner::default(), CompilerOptions::default())
-            .reduce_program(&ast.clone().into_repr(), &asg.into_repr())?,
-    );
+    let new_ast = TypeInferenceStage::default()
+        .stage_ast(&program, &asg.into_repr())
+        .expect("Failed to produce type inference ast.");
     if matches.is_present("all") || matches.is_present("type_inference") {
         write_ast(new_ast.clone(), "type_inference.json")?;
     }
